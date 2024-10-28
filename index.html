@@ -1,0 +1,475 @@
+<html>
+
+<head>
+    <title style="font-size: 20px; color: blue;">ml</title>
+</head>
+
+<body style="background-color: #ffffff;  font-family: Arial, sans-serif;">
+    <p style="font-size: 16px; color: #ffffff;">
+        data = load('Dataset\wine.txt');<br>
+        data(:,1) = [];<br>
+        data = [data,lebal];<br><br>
+        //splitData <br>
+        function [trData, teData] = splitData(data)<br>
+        [m,n] = size(data);<br>
+        indices = randperm(m);<br>
+        data = data(indices,:);<br>
+        trData = [];<br>
+        teData = [];<br>
+        nTr = round(m*0.7);<br>
+        trData = data(1:nTr,:);<br>
+        teData = data(nTr+1:m,:);<br><br>
+
+        //scaleData <br>
+        function [trData,teData] = scaleData(trData,teData)<br>
+
+        [row,col] = size(trData);<br>
+        normalMax = 1;<br>
+        normalMin = -1;<br>
+
+        for i=1 : (col-1)<br>
+        realMax = max(trData(:,i));<br>
+        realMin = min(trData(:,i));<br>
+        radio_scale = (normalMax-normalMin)/(realMax-realMin);<br>
+        trData(:,i) = (radio_scale*(trData(:,i)-realMin))+normalMin;<br>
+        teData(:,i) = (radio_scale*(teData(:,i)-realMin))+normalMin;<br>
+        end<br><br>
+
+        //nn <br>
+        function rate = nn(trData, teData)<br>
+
+        mtr = size(trData,1);<br>
+        mte = size(teData,1);<br>
+        predict = [];<br>
+
+        for j = 1:mte<br>
+        d = [];<br>
+        y = teData(j, 1:end-1);<br>
+        for i=1:mtr<br>
+        d(i) = norm(y-trData(i,1:end-1));<br>
+        end<br>
+        [elt,ind] = min(d);<br>
+        predict(j) = trData(ind,end);<br>
+        end<br>
+
+        actual = teData(:,end);<br>
+        rate = 100 * sum(actual == predict')/mte;<br><br>
+
+        //knn <br>
+        function rate = knn(trData,teData,k)<br>
+
+        mtr = size(trData,1);<br>
+        mte = size(teData,1);<br>
+
+        predict = [];<br>
+
+        for j=1:mte<br>
+        d = [];<br>
+        y = teData(j,1:end-1);<br>
+        for i=1:mtr<br>
+        d(i) = norm(y-trData(i,1:end-1));<br>
+        end
+        [~, idx] = sort(d);<br>
+        nearestNeighbors = trData(idx(1:k), end);<br>
+
+        predict(j) = mode(nearestNeighbors);<br>
+        end<br>
+
+        actual = teData(:,end);<br>
+        rate = 100 * sum(actual == predict')/mte;<br><br>
+
+        //ClusterringKM <br>
+        rng(1);<br>
+        n_points = 100;<br>
+
+        X1 = [randn(n_points, 2) + 2];<br>
+        X2 = [randn(n_points, 2) - 2];<br>
+        X3 = [randn(n_points, 2) + [-4,4]];<br>
+
+        X = [X1; X2; X3];<br>
+
+        K=3;<br>
+        [idx,C] = kmeans(X,K);<br>
+
+        figure;<br>
+        gscatter(X(:,1), X(:,2), idx);<br>
+        hold on;<br>
+
+        plot(C(:,1), C(:,2), 'kx', 'MarkerSize', 15, 'LineWidth', 3);<br>
+        legend('Cluster 1', 'Cluster 2', 'Cluster 3', 'Centroids');<br>
+        xlabel('Feature 1');<br>
+        ylabel('Feature 2');<br>
+        hold off;<br><br>
+
+
+        //OVASVMs <br>
+        function accuracy = OVASVMs(data,N) <br>
+
+        % N - number of classes <br>
+        % nTest - number of training samples from each class <br>
+
+        [trainData,teData] = splitData(data); <br>
+        [trData,valData] = splitData(trainData); <br>
+        %[trData,teData] = scaleData(trData,teData); <br>
+
+        A=1:N; % generate Class numbers for NvsAll classifiers <br>
+
+
+        % Training the Model <br>
+        C = [2^-10 2^-9 2^-8 2^-7 2^-6 2^-5 2^-4 2^-3 2^-2 2^-1 2^0 2^1 2^2 2^3 2^4 2^5 2^6 2^7 2^8 2^9 2^10]; <br>
+        accuracy = []; <br>
+
+        for i = 1:length(C) <br>
+        options=svmlopt('C',C(i),'Verbosity',0); <br>
+        predict=[]; <br>
+
+        for class=1:N <br>
+        Model = ['Model',int2str(A(class)),'VsAll']; <br>
+        x = invertData(trData,A(class)); <br>
+        y = x(:,end); <br>
+        x(:,end) = []; <br>
+        svmlwrite('SVMLTrain',x,y); <br>
+        svm_learn(options,'SVMLTrain',Model); <br>
+        clear SVMLTrain x y; <br>
+
+        xval = invertData(valData,A(class)); <br>
+        yval = xval(:,end); <br>
+        xval(:,end) = []; <br>
+        svmlwrite('SVMLVal',xval,yval); <br>
+        ModelOutput = ['ModelOutput',int2str(A(class)),'VsAll']; <br>
+        svm_classify(options,'SVMLVal',Model,ModelOutput); <br>
+        svmpredict = svmlread(ModelOutput); <br>
+        predict = [predict , svmpredict]; <br>
+        end %endfor class <br>
+ <br>
+        accuracy(i) = WinnerTakesAll(valData,predict,A); <br>
+        end %endfor i <br>
+
+
+        [elt,ind] = max(accuracy); <br>
+        cOpt = C(ind); <br>
+
+
+        %Testing using optimal C <br>
+
+
+        options=svmlopt('C',cOpt,'Verbosity',0); <br>
+        predict=[]; <br>
+
+        for class=1:N <br>
+        Model = ['Model',int2str(A(class)),'VsAll']; <br>
+        x = invertData(trData,A(class)); <br>
+        y = x(:,end); <br>
+        x(:,end) = []; <br>
+        svmlwrite('SVMLTrain',x,y); <br>
+        svm_learn(options,'SVMLTrain',Model); <br>
+
+        xtest = invertData(teData,A(class)); <br>
+        ytest = xtest(:,end); <br>
+        xtest(:,end) = []; <br>
+        svmlwrite('SVMLTest',xtest,ytest); <br>
+        ModelOutput = ['ModelOutput',int2str(A(class)),'VsAll']; <br>
+        svm_classify(options,'SVMLTest',Model,ModelOutput); <br>
+        svmpredict = svmlread(ModelOutput); <br>
+        predict = [predict , svmpredict]; <br>
+        end %endfor class <br>
+
+        accuracy = WinnerTakesAll(teData,predict,A); <br>
+
+
+ <br>
+
+        % data = load('SVMlight\Dataset\iris.txt'); <br>
+        % accuracy = OVASVMs(data,3); <br>
+        % disp(accuracy); <br><br><br><br><br><br><br><br>
+
+
+
+        //OVOSVMs <br>
+        function accuracy=OVOsvm(train,test,N);<br>
+
+A=1:N;<br>
+
+accuracy=[];<br>
+
+cOpt=2^-2;<br>
+
+predict=[];<br>
+
+ 
+
+options=svmlopt('C',cOpt,'Verbosity',0);<br>
+
+for class1=1:N<br>
+
+    for class2=1:N<br>
+
+        if(class2<=class1)<br>
+
+            continue;<br>
+
+        end<br>
+
+        Model=['Model',int2str(A(class1)),'Vs',int2str(A(class2))];<br>
+
+        x=train;<br>
+
+        y=x(:,end);<br>
+
+        x(:,end)=[];<br>
+
+        svmlwrite('SVMLtr',x,y);<br>
+
+        svm_learn(options,'SVMLtr',Model);<br>
+
+ 
+
+        xtest=test;<br>
+
+        ytest=xtest(:,end);<br>
+
+        xtest(:,end)=[];<br>
+
+        svmlwrite('SVMLte',xtest,ytest);<br>
+
+        ModelOutput=['ModelOutput',int2str(A(class1)),'Vs',int2str(A(class2))];<br>
+
+        svm_classify(options,'SVMLte',Model,ModelOutput);<br>
+
+        svmpredict=svmlread(ModelOutput);<br>
+
+        predict=[predict,svmpredict];<br>
+
+    end<br>
+
+end<br>
+
+accuracy=Max_Win(test,predict,A);<br><br><br><br>
+
+//WinnerTakesAll<br>
+function accuracy = WinnerTakesAll(actual,predict,Classes)<br>
+
+% Using the Winner-Takes-All Strategy <br>
+
+[m,n] = size(actual);<br>
+[maxp,classp] = max(predict,[],2);<br>
+accuracy = sum(actual(:,n)==Classes(classp)')/m;<br>
+% winner=mode(classp);<br><br><br><br><br>
+
+//myROC<br>
+trueLabels   = [1;     1;   1;   0;   0;   0;    1;   0;    1;   0];   <br>
+predictedPos = [0.9; 0.8; 0.7; 0.4; 0.3; 0.2; 0.85; 0.4; 0.95; 0.1]; <br>
+
+[X, Y, T, AUC] = perfcurve(trueLabels, predictedPos, 1); % <br>
+
+figure;<br>
+plot(X,Y, 'LineWidth', 1);<br>
+xlabel('False Positive Rate');<br>
+ylabel('True Positive Rate');<br>
+title('ROC Curve');<br>
+grid on;<br>
+
+disp(['AUC: ', num2str(AUC)]);<br><br><br><br><br><br>
+
+
+//myPCA<br>
+data = rand(10,3);<br>
+
+% Normalisation<br>
+mu = mean(data); <br>
+normData = data - mu; <br>
+
+% Covariance<br>
+covMatrix = cov(normData);<br>
+
+% Eigenvalues and eigenvectors<br>
+[eigenvectors, eigenvalues] = eig(covMatrix);<br>
+
+% Sort (descending order)<br>
+[eigenvaluesSorted, index] = sort(diag(eigenvalues), 'descend');<br>
+eigenvectorsSorted = eigenvectors(:,index);<br>
+
+% Top k eigenvectors <br>
+k = 2;<br>
+selectedEigenvectors = eigenvectorsSorted(:,1:k);<br>
+
+% Project the data <br>
+reducedData = normData*selectedEigenvectors;<br>
+
+% Original data and reduced data<br>
+disp('Original Data:');<br>
+disp(data);<br>
+disp('Reduced Data (2D):');<br>
+disp(reducedData);<br>
+
+% Reduced data for visualization<br>
+figure;<br>
+scatter(reducedData(:,1), reducedData(:,2), 'filled');<br>
+title('PCA - Data Projected onto 2D');<br>
+xlabel('PC-1');<br>
+ylabel('PC-2');<br>
+grid on;<br><br><br><br><br><br><br>
+
+//findS<br>
+function h = findS(X,Y)<br>
+
+[m,n] = size(X);<br>
+h = repmat('0', 1, n);<br>
+
+for i = 1:m<br>
+    if Y(i) == 1<br>
+        if all(h == '0')<br>
+            h = X(i,:);<br>
+        else<br>
+            for j = 1:n<br>
+                if h(j) ~= X(i,j)<br>
+                    h(j) = '?';<br>
+                end<br>
+            end<br>
+        end<br>
+    end<br>
+end<br>
+
+<br>
+<br>
+%X = ["sunny", "warm", "normal", "strong", "warm", "same";<br>
+%     "sunny", "warm", "high",   "strong", "warm", "same";<br>
+%     "rainy", "cold", "high",   "strong", "warm", "change";<br>
+%     "sunny", "warm", "high",   "strong", "cool", "change"];<br>
+ 
+% y = [1; 1; 0; 1]; % 1 = positive, 0 = negative<br>
+% hypothesis = findS(X, y);<br>
+% disp(hypothesis);<br><br><br><br><br><br><br>
+
+
+//nFoldCV<br>
+function avg_accuracy = nFoldCV(data,n)<br>
+
+ 
+
+X = data(:,1:end-1);<br>
+
+y = data(:,end);<br>
+
+ 
+
+% Create cross-validation partition<br>
+
+cv = cvpartition(size(X, 1), 'KFold', n);<br>
+
+ 
+
+accuracies = zeros(n,1);<br>
+
+ 
+
+for i = 1:n<br>
+
+    traindata = [X(training(cv, i),:), y(training(cv, i))];<br>
+
+    testdata = [X(test(cv, i), :),y(test(cv, i))];<br>
+
+     
+
+    % Calculate accuracy for the current fold<br>
+
+    accuracies(i) = nn(traindata,testdata);<br>
+
+   
+
+    % Display progress<br>
+
+    fprintf('Fold %d accuracy: %.2f%%\n', i, accuracies(i)*100);<br>
+
+end<br>
+
+ 
+
+avg_accuracy = mean(accuracies);<br>
+
+fprintf('Average accuracy:%.2f%%\n', avg_accuracy);<br><br><br><br><br><br><br>
+
+
+
+//fwdFeatureSelect<br>
+function selected_features = fwdFeatureSelect(train,test,select)<br>
+
+% select - #features to be selected<br>
+
+d = size(train,2)-1;<br>
+<br>
+selected_features = []; <br>
+remaining_features = 1:d; <br>
+best_accuracy = 0; <br>
+
+Xtr = train(:,1:end-1);<br>
+Xte = test(:,1:end-1);<br>
+Ytr = train(:,end);<br>
+Yte = test(:,end);<br>
+
+for i = 1:select<br>
+    best_feature = 0;<br>
+    for feature = remaining_features<br>
+
+        current_features = [selected_features, feature];<br>
+        
+        Xtr_subset = Xtr(:,current_features);<br>
+        Xte_subset = Xte(:,current_features);<br>
+
+        accuracy = nn([Xtr_subset, Ytr],[Xte_subset, Yte]);<br>
+
+        if accuracy > best_accuracy<br>
+            best_accuracy = accuracy;<br>
+            best_feature = feature;<br>
+        end<br>
+    end<br>
+    <br>
+
+    if best_feature ~= 0<br>
+        selected_features = [selected_features, best_feature];<br>
+        remaining_features(remaining_features == best_feature) = [];<br>
+    else<br>
+        break; <br>
+    end<br>
+    
+    fprintf('Selected feature %d with accuracy %.2f\n', best_feature, best_accuracy);<br>
+end<br><br><br><br><br><br><br><br>
+
+//invertData<br>
+function invData= invertData(Data,class)<br>
+
+% This function is used to invert the +1 Class and -1 Classes <br>
+
+invData=Data;<br>
+n=size(invData,2);<br>
+<br>
+%****************** Class-first ******************************<br>
+
+indices=(invData(:,n)==class);<br>
+invData(indices,n)=1;<br>
+<br>
+%****************** Class-last *******************************<br>
+
+ind= ~indices;<br>
+invData(ind,n)=-1;<br>
+
+%*************************************************************<br><br><br><br><br><br><br><br>
+
+//Preformance<br>
+function accuracy = Preformance(actual, predict)<br>
+
+temp = (predict>=0);<br>
+tp = sum(actual==temp);<br>
+
+temp=(predict<0)*(-1);<br>
+tn = sum(actual == temp);<br>
+
+fn = sum(actual>=0)-tp;<br>
+fp = sum(actual<0)-tn;<br>
+
+accuracy=(tp+tn)./(tp+fp+fn+tn);<br>
+
+    </p>
+</body>
+
+</html>
